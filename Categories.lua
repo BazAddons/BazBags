@@ -1027,8 +1027,8 @@ function Categories.GetPairsByCategory()
                 local link    = info.hyperlink
                 local quality = info.quality
                 local classID = info.classID
-                if (not classID or not quality) and link and GetItemInfo then
-                    local _, _, q, _, _, _, _, _, _, _, _, c = GetItemInfo(link)
+                if (not classID or not quality) and link then
+                    local _, _, q, _, _, _, _, _, _, _, _, c = C_Item.GetItemInfo(link)
                     quality = quality or q
                     classID = classID or c
                 end

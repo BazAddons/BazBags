@@ -1,8 +1,8 @@
-## Interface: 120005
+## Interface: 120100
 ## Title: BazBags
 ## Notes: Lightweight unified bag panel with collapsible sections per bag type
 ## Author: Baz4k
-## Version: 075
+## Version: 076
 ## X-License: GPL v2
 ## Category: Baz Suite
 ## X-Category: Bags & Inventory

@@ -30,12 +30,10 @@ local PAGE_KEY = ADDON_NAME .. "-Categories"
 -- so this gradually fills in over time.
 local function ItemDisplayName(itemID)
     if not itemID then return "?" end
-    if GetItemInfo then
-        local name, link = GetItemInfo(itemID)
-        if name then
-            -- Prefer the colored link if available so quality colours come through.
-            return link or name
-        end
+    local name, link = C_Item.GetItemInfo(itemID)
+    if name then
+        -- Prefer the colored link if available so quality colours come through.
+        return link or name
     end
     return "Item " .. itemID
 end
@@ -121,20 +119,6 @@ local function ExpacValueLabel(id)
     return tostring(id)
 end
 
--- Encode/decode subclass composite value for the dropdown. Storage
--- is a {classID, subclassID} table; the dropdown radio's "value"
--- needs to be a single primitive so we use "class:subclass" strings
--- in the menu and translate at write time.
-local function EncodeSubclassKey(classID, subclassID)
-    return tostring(classID) .. ":" .. tostring(subclassID)
-end
-
-local function DecodeSubclassKey(s)
-    local c, sub = string.match(s or "", "^(%-?%d+):(%-?%d+)$")
-    if not c then return nil end
-    return { tonumber(c), tonumber(sub) }
-end
-
 local ROW_HEIGHT = 36
 local TYPE_W    = 110
 local OP_W      = 90
@@ -145,7 +129,6 @@ local GAP       = 6
 -- between leftAnchorPoint and the Remove button (right edge). Returns
 -- the created widget so callers can SetEnabled / refocus it.
 local function BuildValueControl(frame, tag, key, idx, leftPx, rightInsetPx)
-    local controlW = nil  -- we'll use SetPoint LEFT/RIGHT instead
 
     if tag.type == "name" or tag.type == "ilvl" then
         local input = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
@@ -208,7 +191,6 @@ local function BuildValueControl(frame, tag, key, idx, leftPx, rightInsetPx)
             end
         elseif tag.type == "subclass" then
             for _, o in ipairs(addon.Categories.SUBCLASS_OPTIONS) do
-                local k = EncodeSubclassKey(o.class, o.subclass)
                 root:CreateRadio(o.label,
                     function()
                         return type(tag.value) == "table"

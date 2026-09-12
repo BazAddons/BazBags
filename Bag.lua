@@ -35,7 +35,6 @@ local SLOT_SPACING_X    = 5       -- Blizzard's ITEM_SPACING_X
 local SLOT_SPACING_Y    = 4
 local SECTION_HEADER_H  = 20
 local TOP_PAD           = 60      -- below title bar - leaves room for search/sort row
-local BOTTOM_PAD        = 64      -- above footer (room for money + optional token row)
 local SIDE_PAD          = 12
 
 -- Live setting readers - re-evaluated on every Refresh so the panel
@@ -654,7 +653,7 @@ local function UpdateBagSlotButton(btn)
 
     btn:SetIconTexture(texture)
     if link then
-        local _, _, quality = GetItemInfo(link)
+        local _, _, quality = C_Item.GetItemInfo(link)
         btn:SetQuality(quality, link)
     else
         btn:SetQuality(0)
@@ -715,14 +714,14 @@ local function BuildBagChangePopup()
     if not frame then return nil end
 
     local PAD = 8
-    local SLOT_SIZE = 36
+    local POPUP_SLOT = 36
     local SLOT_GAP  = 4
     local invSlots  = ResolveBagSlots()
     local slotCount = #invSlots
 
     local p = CreateFrame("Frame", "BazBagsBagChangePopup", frame, "BackdropTemplate")
-    p:SetSize(PAD * 2 + slotCount * SLOT_SIZE + (slotCount - 1) * SLOT_GAP,
-              PAD * 2 + SLOT_SIZE + 18)
+    p:SetSize(PAD * 2 + slotCount * POPUP_SLOT + (slotCount - 1) * SLOT_GAP,
+              PAD * 2 + POPUP_SLOT + 18)
     p:SetFrameStrata("DIALOG")
     p:SetBackdrop({
         bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
@@ -749,9 +748,9 @@ local function BuildBagChangePopup()
     for i, invSlot in ipairs(invSlots) do
         local isReagent = (i == #invSlots) and (NUM_REAGENTBAG_SLOTS or 0) > 0
         local btn = BuildBagSlotButton(p, invSlot, isReagent)
-        btn:SetSize(SLOT_SIZE, SLOT_SIZE)
+        btn:SetSize(POPUP_SLOT, POPUP_SLOT)
         btn:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT",
-            PAD + (i - 1) * (SLOT_SIZE + SLOT_GAP), PAD)
+            PAD + (i - 1) * (POPUP_SLOT + SLOT_GAP), PAD)
         p.buttons[i] = btn
     end
 
@@ -1524,10 +1523,11 @@ end
 ---------------------------------------------------------------------------
 
 local function HookBlizzardBagToggles()
+    -- BazBags deliberately replaces these Blizzard bag entry points.
+    -- luacheck: globals ToggleAllBags OpenAllBags OpenBackpack CloseAllBags
     if Bag._blizzHooked then return end
     Bag._blizzHooked = true
 
-    local origToggleAllBags = ToggleAllBags
     ToggleAllBags = function()
         -- Mirror Blizzard's "if any bag panel is open, close all"
         -- behaviour but with our panel as the open/close target.
@@ -1538,12 +1538,10 @@ local function HookBlizzardBagToggles()
         end
     end
 
-    local origOpenAllBags = OpenAllBags
     OpenAllBags = function()
         Bag:Show()
     end
 
-    local origOpenBackpack = OpenBackpack
     OpenBackpack = function()
         Bag:Show()
     end
@@ -1577,11 +1575,7 @@ BazCore:QueueForLogin(HookBlizzardBagToggles)
 ---------------------------------------------------------------------------
 
 local function PatchTokenCap()
-    if C_AddOns and C_AddOns.LoadAddOn then
-        C_AddOns.LoadAddOn("Blizzard_TokenUI")
-    elseif LoadAddOn then
-        LoadAddOn("Blizzard_TokenUI")
-    end
+    C_AddOns.LoadAddOn("Blizzard_TokenUI")
 
     if BackpackTokenFrame and BackpackTokenFrame.GetMaxTokensWatched then
         BackpackTokenFrame.GetMaxTokensWatched = function() return 999 end
