@@ -586,6 +586,21 @@ local function BuildFrame()
     -- can poke it directly without going through Refresh.
     addon.Bag.frame = frame
 
+    -- Hide every slot button whenever the panel closes. The slots are
+    -- ContainerFrameItemButtonTemplate frames, and third-party bag
+    -- overlays (Vaultloom's Bag Item Level, for one) track every such
+    -- button and refresh it on BAG_UPDATE_DELAYED whenever IsShown() is
+    -- true - parent visibility isn't consulted. With the panel hidden
+    -- but ~200 slots still flagged Shown, every loot event triggered an
+    -- item-level scan of all of them: a visible hitch with the bag
+    -- closed. Refresh re-shows exactly the slots it lays out, so this
+    -- is the only change needed.
+    frame:HookScript("OnHide", function()
+        for _, slots in pairs(slotButtons) do
+            for _, btn in pairs(slots) do btn:Hide() end
+        end
+    end)
+
     return frame
 end
 
@@ -1561,7 +1576,7 @@ end
 BazCore:QueueForLogin(HookBlizzardBagToggles)
 
 ---------------------------------------------------------------------------
--- Bypass Blizzard's "TOO_MANY_WATCHED_TOKENS" cap.
+-- Lift Blizzard's "TOO_MANY_WATCHED_TOKENS" cap (cheaply).
 --
 -- Blizzard caps the number of currencies you can mark "Show on
 -- Backpack" via floor(BackpackTokenFrame.width / 50). Their bag is
@@ -1574,12 +1589,66 @@ BazCore:QueueForLogin(HookBlizzardBagToggles)
 -- on demand). Force-load it, then patch.
 ---------------------------------------------------------------------------
 
-local function PatchTokenCap()
-    C_AddOns.LoadAddOn("Blizzard_TokenUI")
+-- Last watched-currency count that Blizzard's BackpackTokenFrame:Update()
+-- produced. Read by the cap below so the update loop runs exactly
+-- watched+1 iterations instead of a large constant.
+local watchedCount
 
-    if BackpackTokenFrame and BackpackTokenFrame.GetMaxTokensWatched then
-        BackpackTokenFrame.GetMaxTokensWatched = function() return 999 end
+local function SeedWatchedCount()
+    -- One-time bounded scan at login so the first Update after our patch
+    -- already knows about every currency this character watches.
+    local n = 0
+    for i = 1, 100 do
+        if not C_CurrencyInfo.GetBackpackCurrencyInfo(i) then break end
+        n = i
+    end
+    watchedCount = n
+end
+
+local function PatchTokenCap()
+    if not (BackpackTokenFrame and BackpackTokenFrame.GetMaxTokensWatched) then return end
+    if BackpackTokenFrame._bazCapPatched then return end
+    BackpackTokenFrame._bazCapPatched = true
+
+    SeedWatchedCount()
+    -- Update() resets numWatchedTokens to 0 before its loop, so the cap
+    -- can't read it live; record the final count after each Update.
+    hooksecurefunc(BackpackTokenFrame, "Update", function(self)
+        if type(self.numWatchedTokens) == "number" then
+            watchedCount = self.numWatchedTokens
+        end
+    end)
+
+    -- NEVER a big constant here. BackpackTokenFrame:Update() loops
+    -- `for i = 1, self:GetMaxTokensWatched()` calling
+    -- C_CurrencyInfo.GetBackpackCurrencyInfo each pass, and the Character
+    -- micro button runs that update on EVERY CURRENCY_DISPLAY_UPDATE, bag
+    -- open or closed. Returning 999 turned each currency pickup into a
+    -- ~1s client hitch (Voidlight Marl orbs). "Watched + 1" keeps the
+    -- toggle check (`GetNumWatchedTokens() >= max`) permanently satisfied
+    -- while the loop stays as short as the watched list itself.
+    local origGetMax = BackpackTokenFrame.GetMaxTokensWatched
+    BackpackTokenFrame.GetMaxTokensWatched = function(self)
+        local base = origGetMax and origGetMax(self) or 7
+        return math.max(base, (watchedCount or 0) + 1)
     end
 end
 
-BazCore:QueueForLogin(PatchTokenCap)
+-- Blizzard_TokenUI is load-on-demand: Blizzard loads it when the
+-- Currency tab opens, and the cap only matters inside that tab. Patch
+-- it the moment it arrives rather than force-loading it at login.
+-- Force-loading kept the entire currency UI resident from login for
+-- every BazBags user, which is a client-side cost on every currency
+-- update even though none of its Lua runs while hidden.
+if C_AddOns.IsAddOnLoaded("Blizzard_TokenUI") then
+    BazCore:QueueForLogin(PatchTokenCap)
+else
+    local tokenUIWatcher = CreateFrame("Frame")
+    tokenUIWatcher:RegisterEvent("ADDON_LOADED")
+    tokenUIWatcher:SetScript("OnEvent", function(self, _, loadedName)
+        if loadedName == "Blizzard_TokenUI" then
+            self:UnregisterEvent("ADDON_LOADED")
+            PatchTokenCap()
+        end
+    end)
+end

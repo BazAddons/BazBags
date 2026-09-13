@@ -1,10 +1,17 @@
 # BazBags Changelog
 
-## 076 — Midnight API updates
+## 077 — Fixed the stutter when picking up currency
 
-Item lookups used for category sorting and quality colours, and the
-loader for Blizzard's currency panel, now use the current Midnight APIs.
-Nothing changes visibly today; this keeps BazBags working when Blizzard
-removes the old compatibility functions.
+**No more hitch when you gain currency.** Flying through Voidlight Marl
+orbs (or picking up any currency) froze the game for about a second,
+even with the bag closed. BazBags raised Blizzard's "Show on Backpack"
+limit in a way that made Blizzard's own currency code do a thousand
+times more work on every currency update. The limit is still lifted, but
+the extra work is gone.
 
-**Marked compatible with patch 12.1.0.** The addon no longer shows as out of date in the AddOns list.
+**Plays nicer with other bag addons.** Slots are now fully hidden when
+the panel is closed, so addons that decorate bag slots (item level
+overlays, for example) no longer scan BazBags' slots after every loot.
+
+**Blizzard's currency window loads on its own schedule again.** BazBags
+no longer forces it to load at login.
